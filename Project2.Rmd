@@ -1,0 +1,234 @@
+---
+title: "project 2"
+author: "Dizhou Wu"
+date: '2023-11-22'
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Project 2
+
+```{r}
+# Load library
+library(countreg)
+library(ROCR)
+library(ggplot2)
+library(foreign)
+library(statmod)
+library(dplyr)
+library(caret)
+library(xlsx)
+suppressMessages(library(car))
+```
+
+
+
+
+```{r}
+# Load data
+athletes <- read.xlsx("/home/wud18/Rstudio/STA712/project2/athletes_data.xlsx", sheetIndex = 1)
+# Remove NA
+athletes <- na.omit(athletes)
+# Races under 10 seconds minus 1
+athletes$Races.under.10.seconds <- athletes$Races.under.10.seconds-1
+athletes
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+# Load necessary library
+library(dplyr)
+
+# Calculate detailed summary statistics for all variables
+detailed_stats <- athletes %>%
+  summarise(
+    Mean_PB = mean(PB, na.rm = TRUE),
+    Median_PB = median(PB, na.rm = TRUE),
+    SD_PB = sd(PB, na.rm = TRUE),
+    Min_PB = min(PB, na.rm = TRUE),
+    Max_PB = max(PB, na.rm = TRUE),
+    IQR_PB = IQR(PB, na.rm = TRUE),
+    
+    Mean_Height = mean(Height.cm., na.rm = TRUE),
+    Median_Height = median(Height.cm., na.rm = TRUE),
+    SD_Height = sd(Height.cm., na.rm = TRUE),
+    Min_Height = min(Height.cm., na.rm = TRUE),
+    Max_Height = max(Height.cm., na.rm = TRUE),
+    IQR_Height = IQR(Height.cm., na.rm = TRUE),
+    
+    Mean_Weight = mean(X.Weight.kg., na.rm = TRUE),
+    Median_Weight = median(X.Weight.kg., na.rm = TRUE),
+    SD_Weight = sd(X.Weight.kg., na.rm = TRUE),
+    Min_Weight = min(X.Weight.kg., na.rm = TRUE),
+    Max_Weight = max(X.Weight.kg., na.rm = TRUE),
+    IQR_Weight = IQR(X.Weight.kg., na.rm = TRUE),
+    
+    Mean_RacesUnder10 = mean(Races.under.10.seconds, na.rm = TRUE),
+    Median_RacesUnder10 = median(Races.under.10.seconds, na.rm = TRUE),
+    SD_RacesUnder10 = sd(Races.under.10.seconds, na.rm = TRUE),
+    Min_RacesUnder10 = min(Races.under.10.seconds, na.rm = TRUE),
+    Max_RacesUnder10 = max(Races.under.10.seconds, na.rm = TRUE),
+    IQR_RacesUnder10 = IQR(Races.under.10.seconds, na.rm = TRUE),
+    
+    Mean_TotalRaces = mean(Total.number.of.races, na.rm = TRUE),
+    Median_TotalRaces = median(Total.number.of.races, na.rm = TRUE),
+    SD_TotalRaces = sd(Total.number.of.races, na.rm = TRUE),
+    Min_TotalRaces = min(Total.number.of.races, na.rm = TRUE),
+    Max_TotalRaces = max(Total.number.of.races, na.rm = TRUE),
+    IQR_TotalRaces = IQR(Total.number.of.races, na.rm = TRUE),
+    
+    Mean_DOB = mean(no..Date.of.birth, na.rm = TRUE),
+    Median_DOB = median(no..Date.of.birth, na.rm = TRUE),
+    SD_DOB = sd(no..Date.of.birth, na.rm = TRUE),
+    Min_DOB = min(no..Date.of.birth, na.rm = TRUE),
+    Max_DOB = max(no..Date.of.birth, na.rm = TRUE),
+    IQR_DOB = IQR(no..Date.of.birth, na.rm = TRUE)
+  )
+
+# Print the detailed statistics
+print(detailed_stats)
+```
+
+
+
+
+
+
+
+
+
+```{r}
+# Fit a poisson model
+m0 <- glm(Races.under.10.seconds ~ no..Date.of.birth + Total.number.of.races + X.Weight.kg. + Height.cm. + PB, data = athletes, family = poisson)
+summary(m0)
+```
+
+```{r}
+rootogram(m0)
+```
+
+```{r}
+# Fit a negative binomial model
+m1 <- glm.nb(Races.under.10.seconds ~ no..Date.of.birth + Total.number.of.races + X.Weight.kg. + Height.cm. + PB, data = athletes)
+summary(m1)
+```
+
+```{r}
+rootogram(m1, main = "Rootogram of Negative Binomial Model", xlab = "Races under 10 seconds")
+```
+
+```{r}
+# 95% Confidence Interval
+conf_int <- confint(m1, level = 0.95)
+print(conf_int)
+```
+
+
+
+
+
+
+
+
+```{r}
+library(pscl)
+m2 <- hurdle(Races.under.10.seconds ~ no..Date.of.birth + Total.number.of.races + X.Weight.kg. + Height.cm. + PB, dist = "poisson", zero.dist = "binomial", data = athletes)
+summary(m2)
+```
+
+```{r}
+rootogram(m2)
+```
+
+```{r}
+m3 <- hurdle(Races.under.10.seconds ~ no..Date.of.birth + Total.number.of.races + X.Weight.kg. + Height.cm. + PB, dist = "negbin", zero.dist = "binomial", data = athletes)
+summary(m3)
+```
+
+```{r}
+rootogram(m3)
+```
+
+
+
+
+
+```{r, fig.width=8, fig.height=9}
+# create a new plotting window and set the plotting area into a 2*2 array
+par(mfrow=c(3,2))
+
+# Quantile residual plot
+qresiduals <- qresid(m1)
+plot(m1$fitted.values, qresiduals, xlab="Fitted values", ylab="Quantile Residuals")
+abline(h = 0, col = "red")
+plot(athletes$no..Date.of.birth, qresiduals, xlab="Date of birth", ylab="Quantile Residuals")
+abline(h = 0, col = "red")
+plot(athletes$PB, qresiduals, xlab="Personal best", ylab="Quantile Residuals")
+abline(h = 0, col = "red")
+plot(athletes$Height.cm., qresiduals, xlab="Height", ylab="Quantile Residuals")
+abline(h = 0, col = "red")
+plot(athletes$X.Weight.kg., qresiduals, xlab="Weight", ylab="Quantile Residuals")
+abline(h = 0, col = "red")
+plot(athletes$Total.number.of.races, qresiduals, xlab="Total number of races", ylab="Quantile Residuals")
+abline(h = 0, col = "red")
+```
+
+
+
+```{r}
+max_position = which.max(qresiduals);max_position
+max_value = max(qresiduals);max_value
+```
+
+```{r}
+athletes[110,]
+```
+
+
+```{r}
+# Assuming m1 is your fitted model
+predicted_value <- predict(m1, newdata = athletes[19, ], type = "response")
+print(predicted_value)
+```
+
+
+```{r}
+# Cook's distance
+cooks_d <- cooks.distance(m1)
+plot(cooks_d, ylab="Cook's distance", xlab="Index")
+#abline(h=c(0.5, 1), col="red")
+```
+
+```{r}
+# Variance inflation factor
+vif(m1)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
